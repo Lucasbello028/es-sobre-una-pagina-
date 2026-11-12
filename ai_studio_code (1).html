@@ -1,0 +1,483 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TaskFlow — Supabase Edition</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Supabase JS Client v2 -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <!-- Google Fonts: Inter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'sans-serif'],
+          },
+        }
+      }
+    }
+  </script>
+</head>
+<body class="bg-[#F8FAFC] text-slate-800 font-sans min-h-screen antialiased selection:bg-indigo-500 selection:text-white">
+
+  <!-- ================= ENCABEZADO (HEADER) ================= -->
+  <header class="sticky top-0 z-30 bg-white/80 backdrop-blur-md border-b border-slate-200">
+    <div class="max-w-4xl mx-auto px-4 sm:px-6 h-18 py-4 flex items-center justify-between">
+      
+      <!-- Título & Estado de conexión -->
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-indigo-600 to-violet-500 flex items-center justify-center text-white shadow-md shadow-indigo-100">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7" />
+          </svg>
+        </div>
+        <div>
+          <div class="flex items-center gap-2">
+            <h1 class="text-xl font-bold tracking-tight text-slate-900 leading-none">TaskFlow</h1>
+            <span id="conn-badge" class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold bg-emerald-50 text-emerald-600 border border-emerald-200/60">
+              ● Supabase Conectado
+            </span>
+          </div>
+          <p class="text-xs text-slate-500 mt-1">Sincronización en la nube en tiempo real</p>
+        </div>
+      </div>
+
+      <!-- Botón Destacado: Agregar Tarea -->
+      <button 
+        onclick="openModal()" 
+        class="inline-flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 active:scale-[0.98] text-white text-sm font-semibold px-4 py-2.5 rounded-xl shadow-lg shadow-indigo-600/20 transition-all cursor-pointer">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4" />
+        </svg>
+        <span>Agregar tarea</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- ================= CONTENEDOR PRINCIPAL ================= -->
+  <main class="max-w-4xl mx-auto px-4 sm:px-6 py-8">
+    
+    <!-- Contadores métricos -->
+    <div class="mb-6 grid grid-cols-1 sm:grid-cols-3 gap-3">
+      <div class="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm flex items-center justify-between">
+        <span class="text-xs font-semibold uppercase tracking-wider text-slate-500">Total</span>
+        <span id="counter-total" class="text-xl font-bold text-slate-800">0</span>
+      </div>
+      <div class="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm flex items-center justify-between">
+        <span class="text-xs font-semibold uppercase tracking-wider text-amber-600">Pendientes</span>
+        <span id="counter-pending" class="text-xl font-bold text-amber-600">0</span>
+      </div>
+      <div class="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm flex items-center justify-between">
+        <span class="text-xs font-semibold uppercase tracking-wider text-emerald-600">Completadas</span>
+        <span id="counter-completed" class="text-xl font-bold text-emerald-600">0</span>
+      </div>
+    </div>
+
+    <!-- Barra de Filtros y Búsqueda -->
+    <div class="flex items-center justify-between gap-4 mb-6">
+      <div class="flex p-1 bg-slate-200/70 rounded-xl text-xs font-medium text-slate-600">
+        <button onclick="setFilter('all')" id="filter-all" class="filter-btn px-3 py-1.5 rounded-lg bg-white text-slate-900 shadow-sm font-semibold transition">Todas</button>
+        <button onclick="setFilter('pending')" id="filter-pending" class="filter-btn px-3 py-1.5 rounded-lg text-slate-600 hover:text-slate-900 transition">Pendientes</button>
+        <button onclick="setFilter('completed')" id="filter-completed" class="filter-btn px-3 py-1.5 rounded-lg text-slate-600 hover:text-slate-900 transition">Completadas</button>
+      </div>
+
+      <div class="relative w-48 sm:w-64">
+        <svg class="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+        </svg>
+        <input 
+          type="text" 
+          id="search-input" 
+          oninput="renderTasks()"
+          placeholder="Buscar tarea..." 
+          class="w-full text-xs pl-9 pr-3 py-2 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 placeholder:text-slate-400 shadow-sm transition"
+        />
+      </div>
+    </div>
+
+    <!-- Indicador de Carga -->
+    <div id="loading" class="text-center py-12 text-slate-400 text-sm flex items-center justify-center gap-2">
+      <svg class="animate-spin h-5 w-5 text-indigo-600" fill="none" viewBox="0 0 24 24">
+        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
+      </svg>
+      Conectando con Supabase...
+    </div>
+
+    <!-- Lista de Tareas -->
+    <div id="task-list" class="space-y-3"></div>
+
+    <!-- Estado Vacío -->
+    <div id="empty-state" class="hidden text-center py-16 bg-white border border-dashed border-slate-300 rounded-3xl mt-4">
+      <div class="w-12 h-12 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center mx-auto mb-3">
+        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+        </svg>
+      </div>
+      <h3 class="text-sm font-semibold text-slate-700">No hay tareas en esta vista</h3>
+      <p class="text-xs text-slate-400 mt-1 max-w-xs mx-auto">Pulsa "Agregar tarea" para registrar tu primera actividad en Supabase.</p>
+    </div>
+  </main>
+
+  <!-- ================= MODAL: AGREGAR / EDITAR TAREA ================= -->
+  <div id="task-modal" class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-white rounded-3xl shadow-2xl border border-slate-100 w-full max-w-md p-6">
+      <div class="flex items-center justify-between pb-4 border-b border-slate-100">
+        <h2 id="modal-title" class="text-lg font-bold text-slate-900">Nueva Tarea</h2>
+        <button onclick="closeModal()" class="text-slate-400 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-100 transition">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
+
+      <form id="task-form" onsubmit="handleFormSubmit(event)" class="mt-4 space-y-4">
+        <input type="hidden" id="task-id">
+
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">Título <span class="text-rose-500">*</span></label>
+          <input 
+            type="text" 
+            id="task-title-input" 
+            required 
+            placeholder="Ej. Revisar balance contable" 
+            class="w-full text-sm px-3.5 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition"
+          >
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">Descripción (opcional)</label>
+          <textarea 
+            id="task-desc-input" 
+            rows="3" 
+            placeholder="Añade notas complementarias..." 
+            class="w-full text-sm px-3.5 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition resize-none"
+          ></textarea>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">Prioridad</label>
+            <select id="task-priority-input" class="w-full text-sm px-3 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition bg-white">
+              <option value="Baja">Baja</option>
+              <option value="Media" selected>Media</option>
+              <option value="Alta">Alta</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">Fecha límite</label>
+            <input 
+              type="date" 
+              id="task-date-input" 
+              class="w-full text-sm px-3 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition bg-white"
+            >
+          </div>
+        </div>
+
+        <div class="flex justify-end gap-2 pt-4">
+          <button 
+            type="button" 
+            onclick="closeModal()" 
+            class="px-4 py-2 text-sm font-medium text-slate-600 hover:text-slate-800 hover:bg-slate-100 rounded-xl transition">
+            Cancelar
+          </button>
+          <button 
+            type="submit" 
+            id="submit-btn"
+            class="px-5 py-2 text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl shadow-md shadow-indigo-600/20 transition">
+            Guardar
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ================= LÓGICA SUPABASE CLIENT ================= -->
+  <script>
+    // DATOS DE TU PROYECTO SUPABASE
+    const SUPABASE_URL = 'https://lvihohvsyjghfxmgrpyt.supabase.co';
+    const SUPABASE_ANON_KEY = 'sb_publishable_MdRkw1y7Lz6tt7e29IIO9w_sows71Pa';
+
+    // Inicialización del cliente Supabase
+    const { createClient } = supabase;
+    const db = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    let tasks = [];
+    let currentFilter = 'all';
+
+    const priorityBadges = {
+      'Alta': 'bg-rose-50 text-rose-600 border border-rose-200/50',
+      'Media': 'bg-amber-50 text-amber-600 border border-amber-200/50',
+      'Baja': 'bg-emerald-50 text-emerald-600 border border-emerald-200/50',
+    };
+
+    // 1. OBTENER TAREAS DESDE SUPABASE
+    async function loadTasks() {
+      try {
+        const { data, error } = await db
+          .from('tasks')
+          .select('*')
+          .order('created_at', { ascending: false });
+
+        if (error) throw error;
+        tasks = data || [];
+        renderTasks();
+      } catch (err) {
+        console.error('Error al cargar datos:', err.message);
+        document.getElementById('conn-badge').className = "inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold bg-rose-50 text-rose-600 border border-rose-200/60";
+        document.getElementById('conn-badge').innerText = "● Error al conectar tabla";
+      } finally {
+        document.getElementById('loading').classList.add('hidden');
+      }
+    }
+
+    // 2. CAMBIAR ESTADO (COMPLETADA / PENDIENTE)
+    async function toggleTask(id) {
+      const task = tasks.find(t => t.id === id);
+      if (!task) return;
+
+      const updatedStatus = !task.completed;
+
+      // Actualización optimista inmediata en la UI
+      task.completed = updatedStatus;
+      renderTasks();
+
+      // Persistencia en Supabase
+      const { error } = await db
+        .from('tasks')
+        .update({ completed: updatedStatus })
+        .eq('id', id);
+
+      if (error) {
+        console.error('Error al actualizar estado:', error);
+        task.completed = !updatedStatus; // Revertir si falló
+        renderTasks();
+      }
+    }
+
+    // 3. ELIMINAR TAREA
+    async function deleteTask(id) {
+      if (!confirm('¿Deseas eliminar esta tarea?')) return;
+
+      // Eliminación optimista en la UI
+      tasks = tasks.filter(t => t.id !== id);
+      renderTasks();
+
+      const { error } = await db
+        .from('tasks')
+        .delete()
+        .eq('id', id);
+
+      if (error) {
+        console.error('Error al eliminar en Supabase:', error);
+        loadTasks(); // Recargar en caso de error
+      }
+    }
+
+    // 4. CREAR O EDITAR TAREA
+    async function handleFormSubmit(e) {
+      e.preventDefault();
+      const submitBtn = document.getElementById('submit-btn');
+      submitBtn.disabled = true;
+      submitBtn.innerText = 'Guardando...';
+
+      const id = document.getElementById('task-id').value;
+      const title = document.getElementById('task-title-input').value.trim();
+      const description = document.getElementById('task-desc-input').value.trim();
+      const priority = document.getElementById('task-priority-input').value;
+      const dueDate = document.getElementById('task-date-input').value || null;
+
+      try {
+        if (id) {
+          // Edición
+          const { error } = await db
+            .from('tasks')
+            .update({ title, description, priority, due_date: dueDate })
+            .eq('id', id);
+
+          if (error) throw error;
+        } else {
+          // Creación
+          const { error } = await db
+            .from('tasks')
+            .insert([{ 
+              title, 
+              description, 
+              priority, 
+              due_date: dueDate, 
+              completed: false 
+            }]);
+
+          if (error) throw error;
+        }
+
+        closeModal();
+        await loadTasks();
+      } catch (err) {
+        alert('Error al guardar en Supabase: ' + err.message);
+      } finally {
+        submitBtn.disabled = false;
+        submitBtn.innerText = 'Guardar';
+      }
+    }
+
+    // 5. ESCUCHAR CAMBIOS EN TIEMPO REAL (REALTIME)
+    function setupRealtime() {
+      db.channel('tasks-realtime')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'tasks' }, (payload) => {
+          // Sincroniza automáticamente si se edita desde otra pestaña o dispositivo
+          loadTasks();
+        })
+        .subscribe();
+    }
+
+    // Render de tareas en el DOM
+    function renderTasks() {
+      const taskListEl = document.getElementById('task-list');
+      const emptyStateEl = document.getElementById('empty-state');
+      const searchVal = document.getElementById('search-input').value.toLowerCase().trim();
+
+      const filteredTasks = tasks.filter(task => {
+        const matchesFilter = (currentFilter === 'all') 
+          || (currentFilter === 'pending' && !task.completed) 
+          || (currentFilter === 'completed' && task.completed);
+
+        const matchesSearch = (task.title || '').toLowerCase().includes(searchVal) 
+          || (task.description && task.description.toLowerCase().includes(searchVal));
+
+        return matchesFilter && matchesSearch;
+      });
+
+      updateCounters();
+
+      if (filteredTasks.length === 0) {
+        taskListEl.innerHTML = '';
+        emptyStateEl.classList.remove('hidden');
+        return;
+      }
+
+      emptyStateEl.classList.add('hidden');
+
+      taskListEl.innerHTML = filteredTasks.map(task => `
+        <div class="group bg-white rounded-2xl p-4 border border-slate-200/80 hover:border-slate-300 shadow-sm hover:shadow-md transition-all flex items-start justify-between gap-4 ${task.completed ? 'bg-slate-50/50' : ''}">
+          <div class="flex items-start gap-3.5 flex-1 min-w-0">
+            <!-- Botón Checkbox -->
+            <button 
+              onclick="toggleTask('${task.id}')" 
+              class="mt-1 flex-shrink-0 w-5 h-5 rounded-lg border transition-all flex items-center justify-center cursor-pointer ${
+                task.completed 
+                ? 'bg-indigo-600 border-indigo-600 text-white shadow-sm shadow-indigo-200' 
+                : 'border-slate-300 hover:border-indigo-500 bg-white'
+              }">
+              <svg class="w-3.5 h-3.5 ${task.completed ? 'opacity-100' : 'opacity-0'} transition-opacity" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7" />
+              </svg>
+            </button>
+
+            <!-- Textos -->
+            <div class="flex-1 min-w-0">
+              <div class="flex items-center gap-2 flex-wrap">
+                <h3 class="text-sm font-semibold text-slate-800 break-words ${task.completed ? 'line-through text-slate-400' : ''}">
+                  ${escapeHTML(task.title)}
+                </h3>
+                <span class="text-[10px] font-semibold px-2 py-0.5 rounded-full ${priorityBadges[task.priority] || priorityBadges['Media']}">
+                  ${task.priority || 'Media'}
+                </span>
+                ${task.due_date ? `
+                  <span class="text-[11px] text-slate-400 flex items-center gap-1 font-medium">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                    ${task.due_date}
+                  </span>
+                ` : ''}
+              </div>
+
+              ${task.description ? `
+                <p class="text-xs text-slate-500 mt-1 line-clamp-2 leading-relaxed ${task.completed ? 'text-slate-300' : ''}">
+                  ${escapeHTML(task.description)}
+                </p>
+              ` : ''}
+            </div>
+          </div>
+
+          <!-- Opciones (Editar / Eliminar) -->
+          <div class="flex items-center gap-1 opacity-90 sm:opacity-0 group-hover:opacity-100 transition-opacity">
+            <button onclick="editTask('${task.id}')" title="Editar" class="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+              </svg>
+            </button>
+            <button onclick="deleteTask('${task.id}')" title="Eliminar" class="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+              </svg>
+            </button>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    function openModal() {
+      document.getElementById('task-form').reset();
+      document.getElementById('task-id').value = '';
+      document.getElementById('modal-title').innerText = 'Nueva Tarea';
+      document.getElementById('task-modal').classList.remove('hidden');
+      document.getElementById('task-title-input').focus();
+    }
+
+    function editTask(id) {
+      const task = tasks.find(t => t.id === id);
+      if (!task) return;
+
+      document.getElementById('task-id').value = task.id;
+      document.getElementById('task-title-input').value = task.title;
+      document.getElementById('task-desc-input').value = task.description || '';
+      document.getElementById('task-priority-input').value = task.priority || 'Media';
+      document.getElementById('task-date-input').value = task.due_date || '';
+      document.getElementById('modal-title').innerText = 'Editar Tarea';
+      document.getElementById('task-modal').classList.remove('hidden');
+    }
+
+    function closeModal() {
+      document.getElementById('task-modal').classList.add('hidden');
+    }
+
+    function setFilter(filter) {
+      currentFilter = filter;
+      document.querySelectorAll('.filter-btn').forEach(btn => {
+        btn.classList.remove('bg-white', 'text-slate-900', 'shadow-sm', 'font-semibold');
+        btn.classList.add('text-slate-600');
+      });
+      const activeBtn = document.getElementById(`filter-${filter}`);
+      activeBtn.classList.add('bg-white', 'text-slate-900', 'shadow-sm', 'font-semibold');
+      activeBtn.classList.remove('text-slate-600');
+      renderTasks();
+    }
+
+    function updateCounters() {
+      const total = tasks.length;
+      const completed = tasks.filter(t => t.completed).length;
+      const pending = total - completed;
+
+      document.getElementById('counter-total').innerText = total;
+      document.getElementById('counter-pending').innerText = pending;
+      document.getElementById('counter-completed').innerText = completed;
+    }
+
+    function escapeHTML(str) {
+      return (str || '').replace(/[&<>'"]/g, 
+        tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag] || tag)
+      );
+    }
+
+    // Inicializar carga de datos y escucha en tiempo real
+    loadTasks();
+    setupRealtime();
+  </script>
+</body>
+</html>
